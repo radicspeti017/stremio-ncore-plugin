@@ -96,6 +96,7 @@ export interface TorrentSource {
   getTorrentUrlBySourceId: (sourceId: string) => Promise<string | null>;
   getRemovableInfoHashes: () => Promise<string[]>;
   getConfigIssues: () => Promise<string | null>;
+  getPopularItems?: (type: 'movie' | 'series') => Promise<Array<{ id: string; type: string }>>;
 }
 
 export interface TorrentSourceIssue {

@@ -27,6 +27,17 @@ export enum SeriesCategory {
 
 export const MOVIE_CATEGORY_FILTERS = Object.values(MovieCategory).join(',');
 export const SERIES_CATEGORY_FILTERS = Object.values(SeriesCategory).join(',');
+export const HUNGARIAN_MOVIE_CATEGORY_FILTERS = [
+  MovieCategory.SD_HUN,
+  MovieCategory.DVD_HUN,
+  MovieCategory.DVD9_HUN,
+  MovieCategory.HD_HUN,
+].join(',');
+export const HUNGARIAN_SERIES_CATEGORY_FILTERS = [
+  SeriesCategory.SD_HUN,
+  SeriesCategory.DVD_HUN,
+  SeriesCategory.HD_HUN,
+].join(',');
 
 export const BATCH_SIZE = 15;
 export const BATCH_DELAY = 200;

@@ -27,8 +27,8 @@ export class DeviceTokenController {
     if (!user) {
       throw new HTTPException(HttpStatusCode.UNAUTHORIZED);
     }
-    const { name } = c.req.valid('json');
-    const deviceToken = await this.deviceTokenService.createDeviceToken(user, name);
+    const { name, preferredLanguage } = c.req.valid('json');
+    const deviceToken = await this.deviceTokenService.createDeviceToken(user, name, preferredLanguage);
     return c.json(deviceToken);
   }
 

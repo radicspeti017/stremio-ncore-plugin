@@ -9,6 +9,7 @@ import { playSchema } from '@/schemas/play.schema';
 import { proxy } from 'hono/proxy';
 import { HttpStatusCode } from '@/types/http';
 import type { TorrentSourceManager } from '@/services/torrent-source';
+import type { DeviceTokenService } from '@/services/device-token';
 
 export class StreamController {
   constructor(
@@ -17,6 +18,7 @@ export class StreamController {
     private streamService: StreamService,
     private userService: UserService,
     private torrentStoreService: TorrentStoreService,
+    private deviceTokenService: DeviceTokenService,
   ) {}
 
   public async getStreamsForMedia(c: Context) {
@@ -30,6 +32,9 @@ export class StreamController {
     const { imdbId, type, episode, season, deviceToken } = result.data;
 
     const user = await this.userService.getUserByDeviceTokenOrThrow(deviceToken);
+
+  const deviceTokenDetails = await this.deviceTokenService.getDeviceTokenDetails(deviceToken);
+  const effectiveLanguage = deviceTokenDetails?.preferredLanguage ?? user.preferredLanguage;
 
     const torrents = await this.torrentSource.getTorrentsForImdbId({
       imdbId,
@@ -45,8 +50,6 @@ export class StreamController {
       user,
     });
 
-    const { preferredLanguage } = user;
-
     const streams = orderedTorrents.map((torrent, i) =>
       this.streamService.convertTorrentToStream({
         torrent,
@@ -54,7 +57,7 @@ export class StreamController {
         deviceToken,
         season,
         episode,
-        preferredLanguage,
+        preferredLanguage: effectiveLanguage,
       }),
     );
 

@@ -1,5 +1,5 @@
 import { sqliteTable, integer, text } from 'drizzle-orm/sqlite-core';
-import { usersTable } from './users';
+import { usersTable, Language, languageValues } from './users';
 
 export const deviceTokensTable = sqliteTable('device_tokens', {
   id: integer().primaryKey({ autoIncrement: true }),
@@ -8,6 +8,7 @@ export const deviceTokensTable = sqliteTable('device_tokens', {
   userId: integer()
     .references(() => usersTable.id)
     .notNull(),
+  preferredLanguage: text({ enum: languageValues }).$type<Language>(),
 });
 
 export type DeviceToken = {
@@ -15,4 +16,5 @@ export type DeviceToken = {
   token: string;
   name: string;
   userId: number;
+  preferredLanguage: Language | null;
 };

@@ -1,6 +1,7 @@
 import { Database } from '@/db';
 import { deviceTokensTable } from '@/db/schema/device-tokens';
 import { User } from '@/types/user';
+import { Language } from '@/db/schema/users';
 import { encodeBase32LowerCaseNoPadding } from '@oslojs/encoding';
 import { and, eq } from 'drizzle-orm';
 
@@ -30,11 +31,11 @@ export class DeviceTokenService {
     return deviceToken;
   }
 
-  public async createDeviceToken(user: User, name: string) {
+  public async createDeviceToken(user: User, name: string, preferredLanguage?: Language) {
     const token = this.generateDeviceToken();
     const [deviceToken] = await this.db
       .insert(deviceTokensTable)
-      .values({ token, name, userId: user.id })
+      .values({ token, name, userId: user.id, preferredLanguage: preferredLanguage ?? null })
       .returning();
     return deviceToken;
   }

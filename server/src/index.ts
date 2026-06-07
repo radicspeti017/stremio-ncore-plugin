@@ -18,6 +18,10 @@ import { TorrentController } from '@/controllers/torrent.controller';
 
 import { NcoreService } from '@/services/torrent-source/ncore';
 import { TorrentSourceManager } from '@/services/torrent-source';
+import { SubtitleService } from '@/services/subtitle';
+import { CatalogService } from '@/services/catalog';
+import { SubtitleController } from '@/controllers/subtitle.controller';
+import { CatalogController } from '@/controllers/catalog.controller';
 import { zValidator } from '@hono/zod-validator';
 import { loginSchema } from '@/schemas/login.schema';
 import {
@@ -54,11 +58,6 @@ const userService = new UserService(db);
 const configService = new ConfigService(db, userService);
 const sessionService = new SessionService(db);
 const deviceTokenService = new DeviceTokenService(db);
-const manifestService = new ManifestService(
-  configService,
-  userService,
-  deviceTokenService,
-);
 const torrentService = new TorrentService();
 const cinemetaService = new CinemeatService();
 const torrentSource = new TorrentSourceManager([
@@ -73,6 +72,18 @@ const torrentSource = new TorrentSourceManager([
       )
     : null,
 ]);
+const subtitlesEnabled = !!(
+  env.OPENSUBTITLES_API_KEY &&
+  env.OPENSUBTITLES_USERNAME &&
+  env.OPENSUBTITLES_PASSWORD
+);
+const catalogEnabled = torrentSource['sources'].length > 0;
+
+const manifestService = new ManifestService(configService, userService, deviceTokenService, {
+  subtitles: subtitlesEnabled,
+  catalog: catalogEnabled,
+});
+
 
 const isAuthenticated = createAuthMiddleware(sessionService);
 const isAdmin = createAdminMiddleware(sessionService);
@@ -95,7 +106,21 @@ const streamController = new StreamController(
   streamService,
   userService,
   torrentStoreService,
+  deviceTokenService,
 );
+
+const subtitleController = subtitlesEnabled
+  ? new SubtitleController(
+      new SubtitleService(
+        env.OPENSUBTITLES_API_KEY!,
+        env.OPENSUBTITLES_USERNAME!,
+        env.OPENSUBTITLES_PASSWORD!,
+        (await configService.getConfig()).addonUrl,
+      ),
+    )
+  : null;
+
+const catalogController = new CatalogController(new CatalogService(torrentSource));
 const torrentController = new TorrentController(torrentStoreService);
 
 torrentStoreService.loadExistingTorrents();
@@ -175,6 +200,14 @@ const app = new Hono<HonoEnv>()
   .get('/auth/:deviceToken/stream/:type/:imdbId', isDeviceAuthenticated, (c) =>
     streamController.getStreamsForMedia(c),
   )
+  .get('/auth/:deviceToken/subtitles/:type/:id', isDeviceAuthenticated, (c) =>
+    subtitleController
+      ? subtitleController.getSubtitles(c)
+      : c.json({ subtitles: [] }),
+  )
+  .get('/auth/:deviceToken/catalog/:type/:id', isDeviceAuthenticated, (c) =>
+    catalogController.getCatalog(c),
+  )
   .get(
     '/auth/:deviceToken/stream/play/:sourceName/:sourceId/:infoHash/:fileIdx',
     isDeviceAuthenticated,
@@ -183,6 +216,13 @@ const app = new Hono<HonoEnv>()
 
   .get('/torrents', isAdmin, (c) => torrentController.getTorrentStats(c))
   .delete('/torrents/:infoHash', isAdmin, (c) => torrentController.deleteTorrent(c));
+
+// Subtitle proxy — no session auth needed, file_id carries no sensitive data
+baseApp.get('/subtitle-proxy/:fileId', (c) =>
+  subtitleController
+    ? subtitleController.proxySubtitle(c)
+    : c.json({ error: 'Subtitles not configured' }, 503),
+);
 
 baseApp.route('/api', app);
 

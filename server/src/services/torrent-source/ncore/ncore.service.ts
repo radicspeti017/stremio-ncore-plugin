@@ -7,11 +7,16 @@ import {
   type NcorePageResponseJson,
   type NcoreQueryParams,
 } from './types';
+import { NcoreOrderDirection } from './types';
 import {
   BATCH_DELAY,
   BATCH_SIZE,
   MOVIE_CATEGORY_FILTERS,
   SERIES_CATEGORY_FILTERS,
+} from './constants';
+import {
+  HUNGARIAN_MOVIE_CATEGORY_FILTERS,
+  HUNGARIAN_SERIES_CATEGORY_FILTERS,
 } from './constants';
 import { NcoreTorrentDetails } from './ncore-torrent-details';
 import type { TorrentService } from '@/services/torrent';
@@ -280,6 +285,47 @@ export class NcoreService implements TorrentSource {
     torrents = this.filterTorrentsBySeasonAndEpisode(torrents, { season, episode });
 
     return torrents;
+  }
+
+  /** Returns the top popular items for the given type from HU categories, sorted by seeders.
+   *  Only uses the first page of results — no torrent file download required.
+   */
+  private popularItemsCache = new Map<string, { value: Array<{ id: string; type: string }>; expiresAt: number }>();
+
+  public async getPopularItems(
+    type: 'movie' | 'series',
+  ): Promise<Array<{ id: string; type: string }>> {
+    const cached = this.popularItemsCache.get(type);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+    const categoryFilter =
+      type === 'movie' ? HUNGARIAN_MOVIE_CATEGORY_FILTERS : HUNGARIAN_SERIES_CATEGORY_FILTERS;
+    const query = new URLSearchParams({
+      mire: '',
+      miben: NcoreSearchBy.NAME,
+      miszerint: NcoreOrderBy.SEEDERS,
+      hogyan: NcoreOrderDirection.DESC,
+      kivalasztott_tipus: categoryFilter,
+      tipus: 'kivalasztottak_kozott',
+      jsons: 'true',
+      oldal: '1',
+    });
+    const page = await this.fetchTorrents(query);
+    const seen = new Set<string>();
+    const items: Array<{ id: string; type: string }> = [];
+    for (const torrent of page.results) {
+      if (!torrent.imdb_id) continue;
+      const imdbId = torrent.imdb_id.startsWith('tt')
+        ? torrent.imdb_id
+        : `tt${torrent.imdb_id}`;
+      if (seen.has(imdbId)) continue;
+      seen.add(imdbId);
+      items.push({ id: imdbId, type });
+      if (items.length >= 25) break;
+    }
+    this.popularItemsCache.set(type, { value: items, expiresAt: Date.now() + DEFAULT_TTL });
+    return items;
   }
 
   public async getTorrentUrlBySourceId(ncoreId: string) {

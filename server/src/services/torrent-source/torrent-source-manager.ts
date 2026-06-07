@@ -79,4 +79,15 @@ export class TorrentSourceManager {
     const results = (await awaitAllReachablePromises(promises)).flat().filter(isNotNull);
     return results;
   }
+
+  public async getPopularItems(
+    type: 'movie' | 'series',
+  ): Promise<Array<{ id: string; type: string }>> {
+    for (const source of this.sources) {
+      if (source.getPopularItems) {
+        return source.getPopularItems(type);
+      }
+    }
+    return [];
+  }
 }

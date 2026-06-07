@@ -25,6 +25,9 @@ export const envSchema = z
     NCORE_COOKIE: z.preprocess(sanitizeEnvValue, z.string().optional()),
     TORRENTS_DIR: z.preprocess(sanitizeEnvValue, z.string().optional()),
     DOWNLOADS_DIR: z.preprocess(sanitizeEnvValue, z.string().optional()),
+    OPENSUBTITLES_API_KEY: z.preprocess(sanitizeEnvValue, z.string().optional()),
+    OPENSUBTITLES_USERNAME: z.preprocess(sanitizeEnvValue, z.string().optional()),
+    OPENSUBTITLES_PASSWORD: z.preprocess(sanitizeEnvValue, z.string().optional()),
     NCORE_URL: z.preprocess(
       sanitizeEnvValue,
       z.string().url().default('https://ncore.pro'),
