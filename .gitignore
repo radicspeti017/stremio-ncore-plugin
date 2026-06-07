@@ -17,6 +17,7 @@ server/dist/
 downloads/
 addon-data/
 *.db
+*.tar.gz
 
 # Logs
 *.log
