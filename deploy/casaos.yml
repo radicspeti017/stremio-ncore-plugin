@@ -1,0 +1,29 @@
+name: stremio-ncore-addon
+services:
+  stremio-ncore-addon:
+    image: stremio-ncore-addon:custom
+    environment:
+      - NCORE_USERNAME=
+      - NCORE_PASSWORD=
+    ports:
+      - target: 3000
+        published: 3000
+        protocol: tcp
+      - target: 3443
+        published: 3443
+        protocol: tcp
+      - target: 42069
+        published: 42069
+        protocol: tcp
+      - target: 42069
+        published: 42069
+        protocol: udp
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: /DATA/AppData/stremio-ncore-addon
+        target: /addon
+x-casaos:
+  scheme: https
+  title:
+    custom: Stremio nCore addon

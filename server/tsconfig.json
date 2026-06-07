@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "strict": true,
+
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "esModuleInterop": true,
+    "composite": true,
+    "declaration": true,
+    "tsBuildInfoFile": "../dist/server/tsconfig.tsbuildinfo",
+
+    "outDir": "../dist/server",
+    "lib": ["ES2022"],
+    "rootDir": "src",
+    "baseUrl": "./",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "tsc-alias": {
+    "resolveFullPaths": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["**/*.test.*"]
+}

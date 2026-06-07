@@ -1,0 +1,19 @@
+services:
+  stremio-radics:
+    image: stremio-ncore-addon:custom
+    environment:
+      ADDON_DIR: /addon
+      PORT: 3000
+      TORRENT_SERVER_PORT: 8080
+      NCORE_URL: https://ncore.pro
+      CINEMETA_URL: https://v3-cinemeta.strem.io
+      NCORE_USERNAME: ${NCORE_USERNAME}
+      NCORE_PASSWORD: ${NCORE_PASSWORD}
+    ports:
+      # Drop-in replacement for the existing container mapping 3001->3000
+      - "3001:3000/tcp"
+      - "42069:42069/tcp"
+      - "42069:42069/udp"
+    volumes:
+      - /DATA/AppData/stremio-ncore-addon:/addon
+    restart: unless-stopped
