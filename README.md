@@ -12,138 +12,69 @@ Saját szerveren futtatható Stremio addon, amellyel közvetlenül az nCore-ról
 
 ## CasaOS: csak a meglévő konténer frissítése
 
-**Ha a Stremio addon már működik CasaOS alatt, ezt a fejezetet kövesd minden frissítésnél. Nem kell új appot telepíteni, új Compose projektet létrehozni vagy újra konfigurálni a Stremiót.** A meglévő CasaOS app saját Compose fájlja alapján cseréljük a konténert. Az addon URL-je, a portok, az env-beállítások és a volume-ok változatlanok maradnak; a felhasználók, device tokenek, torrentek és letöltések a meglévő adatkönyvtárakban maradnak.
+**Build → leállítás → konténercsere.** Nem kell új appot telepíteni vagy újra beállítani a Stremiót. A meglévő CasaOS-konfigurációt használjuk: a portok, volume-ok, felhasználók, tokenek és letöltések megmaradnak.
 
-> [!IMPORTANT]
-> Ne importáld új appként a repository CasaOS-/Compose-fájljait, és ehhez a frissítéshez ne használd a későbbi fejezetek új telepítési parancsait. Ne töröld az appot vagy az adatkönyvtárát. A `docker restart` nem elég: új image-et kell buildelni és a konténert újralétrehozni.
+Az alábbi parancsokat a szerveren, ugyanabban az SSH-munkamenetben futtasd. A helyőrzőket a meglévő app adataira cseréld. A konténer neve a `docker ps` paranccsal látható.
 
-### 1. A meglévő konténer és CasaOS-beállítások azonosítása
+<details>
+<summary>Hol találom a CasaOS projekt, service és Compose fájl nevét?</summary>
 
-SSH-val a CasaOS szerveren:
-
-```sh
-docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
-```
-
-Válaszd ki a jelenleg működő Stremio addon konténerének **pontos nevét**, majd az alábbi első sorban cseréld le a helyőrzőt. A parancsok a meglévő konténerből olvassák ki a CasaOS által használt Compose projektet, service-t és konfigurációs fájlokat:
+A pontos konténernévvel:
 
 ```sh
-CONTAINER='MEGLEVO_STREMIO_KONTENER_NEVE'
-CURRENT_IMAGE=$(docker inspect "$CONTAINER" --format '{{.Config.Image}}')
-CASAOS_PROJECT=$(docker inspect "$CONTAINER" \
-  --format '{{index .Config.Labels "com.docker.compose.project"}}')
-CASAOS_SERVICE=$(docker inspect "$CONTAINER" \
-  --format '{{index .Config.Labels "com.docker.compose.service"}}')
-CASAOS_WORKDIR=$(docker inspect "$CONTAINER" \
-  --format '{{index .Config.Labels "com.docker.compose.project.working_dir"}}')
-CASAOS_CONFIG_FILES=$(docker inspect "$CONTAINER" \
-  --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}')
-
-printf 'Image: %s\nProjekt: %s\nService: %s\nCompose könyvtár: %s\nCompose fájlok: %s\n' \
-  "$CURRENT_IMAGE" "$CASAOS_PROJECT" "$CASAOS_SERVICE" \
-  "$CASAOS_WORKDIR" "$CASAOS_CONFIG_FILES"
-docker inspect "$CONTAINER" --format '{{json .Mounts}}'
+docker inspect MEGLEVO_KONTENER_NEVE --format 'Projekt: {{index .Config.Labels "com.docker.compose.project"}}
+Service: {{index .Config.Labels "com.docker.compose.service"}}
+Könyvtár: {{index .Config.Labels "com.docker.compose.project.working_dir"}}
+Compose fájlok: {{index .Config.Labels "com.docker.compose.project.config_files"}}'
 ```
 
-A Compose fájl általában a `/var/lib/casaos/apps/APP_AZONOSITO/` alatt található, de **a kiolvasott értékeket használd**, ne feltételezz appnevet vagy útvonalat. Ha egy érték üres, `<no value>`, a fájl nem létezik, vagy nincs hozzá hozzáférésed, állj meg: a CasaOS app beállításainál keresd meg a tényleges Compose konfigurációt. Ne helyettesítsd automatikusan a repository mintafájljával.
+A 3. lépésben ezeket a kiolvasott értékeket használd. A példa egy Compose fájlos appra vonatkozik; több fájlnál mindegyiket add meg külön `-f` kapcsolóval, az eredeti sorrendben. Ha az app külön env-fájlt használ, azt is a korábbi módon add át. Üres vagy hibás értéknél ne folytasd.
 
-Ellenőrizd a mountokat is. Lehet külön `/addon` és `/downloads` kötet, például `/DATA/AppData/stremio-ncore-addon` és `/mnt/hdd_main/stremio_downloads`; **mindegyik maradjon a jelenlegi helyén**.
+</details>
 
-A változók csak az aktuális SSH-munkamenetben élnek. Új bejelentkezés után ezt a lépést ismételd meg. Az eljárás módosítható image taggel működik, például `stremio-ncore-addon:custom`. Ha az image neve `@sha256:` digestet tartalmaz, előbb CasaOS-ban állíts be saját taget; digestre nem lehet új image-et buildelni.
+### 1. Forráskód frissítése és build
 
-### 2. A forráskód frissítése és az új image buildje
-
-Első alkalommal klónozd a repositoryt a szerverre:
+Ha még nem klónoztad a repositoryt, ezt egyszer futtasd:
 
 ```sh
-cd ~
-git clone https://github.com/radicspeti017/stremio-ncore-plugin.git stremio-ncore-addon
+git clone https://github.com/radicspeti017/stremio-ncore-plugin.git ~/stremio-ncore-addon
 ```
 
-Ha már klónoztad, ne futtasd újra a clone parancsot. Minden frissítésnél:
+Minden frissítésnél:
 
 ```sh
-cd ~/stremio-ncore-addon
-git status --short
-git switch main
-git pull --ff-only origin main
-git log -1 --oneline
-
-ROLLBACK_IMAGE="stremio-ncore-addon:rollback-$(date +%Y%m%d-%H%M%S)"
-docker image tag "$(docker inspect "$CONTAINER" --format '{{.Image}}')" "$ROLLBACK_IMAGE"
-printf 'Visszaállításhoz megőrzött image: %s\n' "$ROLLBACK_IMAGE"
-
-docker build --pull -t "$CURRENT_IMAGE" .
+CONTAINER='MEGLEVO_KONTENER_NEVE'
+cd ~/stremio-ncore-addon &&
+git pull --ff-only origin main &&
+docker build -t "$(docker inspect "$CONTAINER" --format '{{.Config.Image}}')" .
 ```
 
-A régi konténer a build alatt tovább működik. A build a **jelenlegi CasaOS appban beállított image nevére** készül, ezért nem kell átírni az app image mezőjét. A registry eredeti image-ét ez nem módosítja: a tag csak a szerver helyi Dockerében mutat az új buildre. A `--pull` itt kizárólag a Dockerfile base image-eire vonatkozik.
+A jelenlegi image nevére buildelünk, ezért CasaOS-ban semmit nem kell átírni. A régi konténer közben fut. Ha a build hibázik, ne menj tovább. Digesthez (`@sha256:`) kötött image-nél előbb állíts be saját image taget CasaOS-ban.
 
-Ha a Git vagy a build hibázik, ne menj tovább és ne állítsd le a működő appot. Jegyezd fel a rollback image nevét, és olvasd el az esetleges migrációs figyelmeztetéseket is.
-
-### 3. A meglévő CasaOS Compose-konfiguráció ellenőrzése
-
-A saját CasaOS munkakönyvtárából indítunk, így a relatív útvonalak és az ott található `.env` is a korábbi helyéről töltődnek be. Több Compose fájl esetén mindegyiket, az eredeti sorrendben használjuk:
-
-```sh
-cd "$CASAOS_WORKDIR"
-export COMPOSE_FILE="$(printf '%s' "$CASAOS_CONFIG_FILES" | tr ',' ':')"
-docker compose -p "$CASAOS_PROJECT" config --quiet
-docker compose -p "$CASAOS_PROJECT" config --images
-```
-
-Az image-listában a frissítendő service-hez a `$CURRENT_IMAGE` értéknek kell tartoznia. A CasaOS-ban mentett portokat, env-beállításokat, hálózatokat és mountokat ne változtasd meg. Ha a telepítés külön env-fájlt használ, azt az eredeti módon add át a további Compose parancsokhoz is; ne hozz létre helyette új, üres env-fájlt. Konfigurációs hiba esetén ne folytasd. A teljes `config` kimenetét ne oszd meg, mert jelszavakat tartalmazhat.
-
-### 4. Rövid leállítás és mentés
-
-Állítsd le csak ezt a konténert, majd készíts mentést az addon adatbázisáról és a CasaOS app konfigurációjáról:
+### 2. A meglévő konténer leállítása
 
 ```sh
 docker stop "$CONTAINER"
-umask 077
-BACKUP_DIR="$HOME/stremio-ncore-addon-backups/$(date +%Y%m%d-%H%M%S)"
-mkdir -p "$BACKUP_DIR"
-cp -a /DATA/AppData/stremio-ncore-addon "$BACKUP_DIR/addon"
-cp -a "$CASAOS_WORKDIR" "$BACKUP_DIR/casaos-app"
-printf 'Mentés helye: %s\n' "$BACKUP_DIR"
 ```
 
-**A másolás forrását a saját `/addon` host mountodra cseréld**, ha az eltér a példától. Külön download mount esetén a letöltéseket a frissítés nem mozgatja és nem törli; teljes adatmentéshez ezt a könyvtárat is mentsd külön. Ellenőrizd a mentés sikerét és a szabad helyet. Ha a mentés hibázott, az eredeti konténert `docker start "$CONTAINER"` paranccsal indíthatod vissza, és a cserét halaszd el.
-
-### 5. Csak az addon konténerének cseréje
-
-Továbbra is a `$CASAOS_WORKDIR` könyvtárban, az előbb beállított `COMPOSE_FILE` változóval:
+### 3. Konténercsere a meglévő CasaOS-beállításokkal
 
 ```sh
-docker compose -p "$CASAOS_PROJECT" up -d \
-  --no-deps --force-recreate --pull never "$CASAOS_SERVICE"
+cd /var/lib/casaos/apps/SAJAT_APP &&
+docker compose -p SAJAT_PROJEKT -f docker-compose.yml up -d \
+  --no-deps --force-recreate --pull never SAJAT_SERVICE
 ```
 
-Ez ugyanabban a CasaOS Compose projektben, ugyanazzal a service-konfigurációval hozza újra létre az addon konténerét. A `--no-deps` nem indítja újra a többi service-t, a `--pull never` pedig megakadályozza, hogy a registry image-e felülírja a frissen buildelt helyi image-et. A konténer azonosítója megváltozik, de a tartós kötetek és az app beállításai megmaradnak.
+A saját app könyvtárát, projektjét, Compose fájlját és service-ét használd, **ne a repository új telepítéshez adott mintáját**. A `--pull never` a helyi buildet használja, a `--no-deps` pedig nem cseréli a többi service-t. Ezután ellenőrizd a megszokott web UI-t és egy TV-s lejátszást.
 
-**Ne használd erre a CasaOS registryből frissítő Update műveletét vagy automatikus image-frissítést**, mert visszatöltheti az eredeti, nem saját buildet. A következő saját verziónál ugyanezeket a build- és csere-lépéseket ismételd meg; új setup nem kell.
+**Ennyi.** Szerveren buildelve nincs külön `docker save` / `docker load`. Másik gépen buildelve is a meglévő CasaOS image-nevet használd, majd másold át az image-et, töltsd be `docker load` paranccsal, és végezd el a 2–3. lépést. A `docker load` vagy a sima restart önmagában nem cseréli le a konténer image-ét.
 
-### 6. Ellenőrzés és gyors visszaállítás
+Ne töröld az appot vagy a volume-okat, és ne használd a CasaOS registryből frissítő Update műveletét a saját buildhez. A [mentés](#mentés) és a [rollback](#rollback) külön óvintézkedés; nem újrakonfigurálási lépés.
 
-```sh
-docker compose -p "$CASAOS_PROJECT" ps "$CASAOS_SERVICE"
-docker compose -p "$CASAOS_PROJECT" logs --tail=100 "$CASAOS_SERVICE"
-NEW_CONTAINER=$(docker compose -p "$CASAOS_PROJECT" ps -q "$CASAOS_SERVICE")
-docker inspect "$NEW_CONTAINER" --format 'Futó image ID: {{.Image}}'
-docker image inspect "$CURRENT_IMAGE" --format 'Buildelt image ID: {{.Id}}'
-```
+## Részletes telepítési útmutató
 
-A két image ID-nak egyeznie kell. Nyisd meg a megszokott web UI-t, ellenőrizd a korábbi felhasználókat és torrenteket, majd indíts egy lejátszást a TV-n. A Stremióban telepített addont nem kell lecserélni, ha az URL és a device token változatlan. Ha váratlanul setup képernyő jelenik meg, ne hozz létre új konfigurációt: ellenőrizd az eredeti adatmountot.
-
-Ha vissza kell állni az előző image-re, ugyanebben a munkamenetben:
-
-```sh
-docker compose -p "$CASAOS_PROJECT" stop "$CASAOS_SERVICE"
-docker image tag "$ROLLBACK_IMAGE" "$CURRENT_IMAGE"
-docker compose -p "$CASAOS_PROJECT" up -d \
-  --no-deps --force-recreate --pull never "$CASAOS_SERVICE"
-```
-
-Adatbázis-migráció után **a régi image indítása előtt** a mentett adatkönyvtár visszaállítása is szükséges lehet; ehhez lásd a [rollback leírását](#rollback). Másik SSH-munkamenetben a feljegyzett rollback taget használd. A végén `unset COMPOSE_FILE` paranccsal törölheted a CasaOS-specifikus shell-beállítást.
+<details>
+<summary>Első telepítés, lokális build, Stremio-beállítások, mentés és hibaelhárítás</summary>
 
 ## Tartalom
 
@@ -693,3 +624,5 @@ Az alábbi részletes leírások jelenleg angol nyelvűek. Telepítési parancso
 - [x] LAN-os HTTPS a local-ip.medicmobile.org integrációval
 - [ ] További backend unit tesztek
 - [ ] Frontend unit tesztek
+
+</details>
