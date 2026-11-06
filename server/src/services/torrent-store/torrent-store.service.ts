@@ -1,4 +1,4 @@
-import { ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
+import { ChildProcess, spawn } from 'node:child_process';
 import { TorrentSourceManager } from '../torrent-source';
 import { TorrentResponse, TorrentStoreStats } from './types';
 import { env } from '@/env';
@@ -10,7 +10,7 @@ import { sleep } from '@/utils/sleep';
 
 export class TorrentStoreService {
   private torrentServerUrl: string = `http://localhost:${env.TORRENT_SERVER_PORT}`;
-  private torrentServerInstance: ChildProcessWithoutNullStreams | null = null;
+  private torrentServerInstance: ChildProcess | null = null;
   private torrentServerSdk: TorrentServerSdk = new TorrentServerSdk(
     this.torrentServerUrl,
   );
@@ -23,12 +23,11 @@ export class TorrentStoreService {
         import.meta.dirname,
         '../../../torrent-server/torrent-server',
       );
-      this.torrentServerInstance = spawn(executablePath, [
-        '-p',
-        `${env.TORRENT_SERVER_PORT}`,
-        '-d',
-        env.DOWNLOADS_DIR,
-      ]);
+      this.torrentServerInstance = spawn(
+        executablePath,
+        ['-p', `${env.TORRENT_SERVER_PORT}`, '-d', env.DOWNLOADS_DIR],
+        { stdio: 'inherit' },
+      );
     } else {
       let isServerUp = false,
         retryCount = 0;
@@ -49,9 +48,7 @@ export class TorrentStoreService {
 
   private checkServer() {
     if (this.torrentServerInstance === null && process.env.NODE_ENV === 'production') {
-      throw Error(
-        'The torrent server is not running. You need to initialize it first.',
-      );
+      throw Error('The torrent server is not running. You need to initialize it first.');
     }
   }
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -13,13 +14,22 @@ import (
 
 	bittorrent "github.com/anacrolix/torrent"
 	"github.com/anacrolix/torrent/types/infohash"
+	gin "github.com/gin-gonic/gin"
 	rangeparser "torrent-server/internal/range-parser"
 	responses "torrent-server/internal/responses"
-	gin "github.com/gin-gonic/gin"
 )
 
 type AddTorrentRequest struct {
 	Path string `json:"path"`
+}
+
+type torrentReader struct {
+	context context.Context
+	reader  bittorrent.Reader
+}
+
+func (reader torrentReader) Read(buffer []byte) (int, error) {
+	return reader.reader.ReadContext(reader.context, buffer)
 }
 
 func main() {
@@ -183,7 +193,10 @@ func main() {
 
 		// Stream the range
 		// Create a limited reader to read only the requested range
-		limitedReader := io.LimitReader(reader, end-start+1)
+		limitedReader := io.LimitReader(torrentReader{
+			context: c.Request.Context(),
+			reader:  reader,
+		}, end-start+1)
 		c.DataFromReader(http.StatusPartialContent, end-start+1, getContentType(filepath), limitedReader, nil)
 	})
 
